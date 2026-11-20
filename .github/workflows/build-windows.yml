@@ -32,13 +32,26 @@ jobs:
           PYTHONPATH: .
 
       - name: Build application
-        run: pyinstaller --noconfirm --clean --windowed --hidden-import=_socket --hidden-import=socket --collect-all rembg --collect-all onnxruntime --collect-all pooch --name "PhotoPrintStudioPro" main.py
+        run: pyinstaller --noconfirm --clean --windowed --hidden-import=_socket --hidden-import=socket --hidden-import=rembg --collect-submodules rembg --collect-all rembg --collect-all onnxruntime --collect-all pooch --name "PhotoPrintStudioPro" main.py
+
+      - name: Verify packaged AI dependencies
+        shell: pwsh
+        run: |
+          $exe = "dist/PhotoPrintStudioPro/PhotoPrintStudioPro.exe"
+          if (!(Test-Path $exe)) { throw "Packaged application executable was not created: $exe" }
+          & $exe --self-test-ai
+          if ($LASTEXITCODE -ne 0) {
+            $log = Join-Path $env:TEMP "PhotoPrintStudioPro-ai-self-test.log"
+            if (Test-Path $log) { Get-Content $log }
+            throw "Packaged EXE failed its rembg/ONNX Runtime smoke test."
+          }
+          Write-Host "Packaged AI dependencies verified."
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
         with:
           name: PhotoPrintStudioPro-EXE
-          path: dist/PhotoPrintStudioPro.exe
+          path: dist/PhotoPrintStudioPro/PhotoPrintStudioPro.exe
           if-no-files-found: warn
 
       - name: Upload EXE folder
