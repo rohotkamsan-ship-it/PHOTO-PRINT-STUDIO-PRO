@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QComboBox, QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel,
     QMainWindow, QMessageBox, QPushButton, QSpinBox, QDoubleSpinBox,
     QSplitter, QVBoxLayout, QWidget, QScrollArea, QGroupBox, QSizePolicy,
+    QCheckBox, QColorDialog,
 )
 
 from .measurements import PHOTO_PRESETS_MM, PAPER_PRESETS_MM, photo_size, paper_size
@@ -24,9 +25,16 @@ class SheetPreview(QWidget):
         self.placements = []
         self.image_paths: list[str] = []
         self.photo_color = QColor("#dce7f3")
+        self.border_enabled = False
+        self.border_color = QColor("#222222")
 
     def set_images(self, image_paths: list[str]) -> None:
         self.image_paths = list(image_paths)
+        self.update()
+
+    def set_cut_border(self, enabled: bool, color: QColor) -> None:
+        self.border_enabled = enabled
+        self.border_color = QColor(color)
         self.update()
 
     def set_sheet(self, width: float, height: float, placements) -> None:
@@ -67,9 +75,10 @@ class SheetPreview(QWidget):
                 painter.fillRect(target, self.photo_color)
                 painter.setPen(QColor("#52657a"))
                 painter.drawText(target, Qt.AlignmentFlag.AlignCenter, "LOAD PHOTO")
-            painter.setPen(QPen(QColor("#9aa8b8"), 1, Qt.PenStyle.DashLine))
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawRect(target)
+            if self.border_enabled:
+                painter.setPen(QPen(self.border_color, max(1.0, scale * 0.25)))
+                painter.drawRect(target)
 
     @staticmethod
     def _draw_fitted_photo(painter: QPainter, pixmap: QPixmap, target: QRectF) -> None:
@@ -91,6 +100,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("PHOTO PRINT STUDIO PRO")
         self.resize(1440, 900)
         self.image_paths: list[str] = list(initial_images or [])
+        self._border_color = "#222222"
         self._build_menu()
         self._build_ui()
         self._apply_style()
@@ -133,6 +143,7 @@ class MainWindow(QMainWindow):
         preview_scroll = QScrollArea()
         preview_scroll.setWidgetResizable(True)
         self.preview = SheetPreview()
+        self.preview.set_cut_border(False, QColor(self._border_color))
         preview_scroll.setWidget(self.preview)
         center_layout.addWidget(preview_scroll, 1)
         splitter.addWidget(center)
@@ -230,6 +241,27 @@ class MainWindow(QMainWindow):
         for control in (self.copies, self.margin, self.spacing):
             control.valueChanged.connect(self.recalculate)
         layout.addWidget(copies_group)
+
+        border_group = self._group("CUTTING LINE / PHOTO BORDER")
+        border_layout = QVBoxLayout(border_group)
+        self.border_enabled = QCheckBox("Show line around each photo")
+        self.border_enabled.setChecked(False)
+        self.border_enabled.toggled.connect(self._cut_border_changed)
+        border_layout.addWidget(self.border_enabled)
+        border_controls = QHBoxLayout()
+        self.border_color_button = QPushButton("Choose line color")
+        self.border_color_button.clicked.connect(self._choose_border_color)
+        self.border_color_label = QLabel("#222222")
+        self.border_color_label.setObjectName("helperText")
+        border_controls.addWidget(self.border_color_button)
+        border_controls.addWidget(self.border_color_label)
+        border_layout.addLayout(border_controls)
+        border_hint = QLabel("Optional cut guide. Turn it off for borderless photos.")
+        border_hint.setWordWrap(True)
+        border_hint.setObjectName("helperText")
+        border_layout.addWidget(border_hint)
+        layout.addWidget(border_group)
+        self.border_color_button.setEnabled(False)
         layout.addStretch()
         return panel
 
@@ -272,6 +304,17 @@ class MainWindow(QMainWindow):
         layout.addWidget(output_group)
         layout.addStretch()
         return panel
+
+    def _cut_border_changed(self, enabled: bool):
+        self.border_color_button.setEnabled(enabled)
+        self.preview.set_cut_border(enabled, QColor(self._border_color))
+
+    def _choose_border_color(self):
+        color = QColorDialog.getColor(QColor(self._border_color), self, "Choose cutting line color")
+        if color.isValid():
+            self._border_color = color.name()
+            self.border_color_label.setText(self._border_color)
+            self.preview.set_cut_border(self.border_enabled.isChecked(), color)
 
     def _preset_changed(self, *_):
         name, unit = self.preset.currentText(), self.unit.currentText()
@@ -354,6 +397,7 @@ class MainWindow(QMainWindow):
             )
             self.preview.set_sheet(pw, ph, placements)
             self.preview.set_images(self.image_paths)
+            self.preview.set_cut_border(self.border_enabled.isChecked(), QColor(self._border_color))
             orientation = self.orientation.currentText()
             self.page_info.setText(
                 f"{self.paper.currentText()} · {orientation} · "
@@ -367,6 +411,7 @@ class MainWindow(QMainWindow):
         except ValueError as error:
             self.preview.set_sheet(self.paper_w.value(), self.paper_h.value(), [])
             self.preview.set_images(self.image_paths)
+            self.preview.set_cut_border(self.border_enabled.isChecked(), QColor(self._border_color))
             self.status.setText(str(error))
 
 
@@ -402,9 +447,10 @@ class MainWindow(QMainWindow):
                     pixmap = QPixmap(self.image_paths[index % len(self.image_paths)])
                     if not pixmap.isNull():
                         SheetPreview._draw_fitted_photo(painter, pixmap, target)
-                painter.setPen(QPen(QColor("#8b98a8"), 2))
-                painter.setBrush(Qt.BrushStyle.NoBrush)
-                painter.drawRect(target)
+                if self.border_enabled.isChecked():
+                    painter.setPen(QPen(QColor(self._border_color), max(1.0, scale * 0.25)))
+                    painter.setBrush(Qt.BrushStyle.NoBrush)
+                    painter.drawRect(target)
         finally:
             painter.end()
         self.status.setText(f"PDF exported: {path}")
@@ -431,9 +477,10 @@ class MainWindow(QMainWindow):
                         pixmap = QPixmap(self.image_paths[index % len(self.image_paths)])
                         if not pixmap.isNull():
                             SheetPreview._draw_fitted_photo(painter, pixmap, target)
-                    painter.setPen(QPen(QColor("#8b98a8"), 2))
-                    painter.setBrush(Qt.BrushStyle.NoBrush)
-                    painter.drawRect(target)
+                    if self.border_enabled.isChecked():
+                        painter.setPen(QPen(QColor(self._border_color), max(1.0, scale * 0.25)))
+                        painter.setBrush(Qt.BrushStyle.NoBrush)
+                        painter.drawRect(target)
                 painter.end()
 
     def _apply_style(self):
