@@ -329,13 +329,14 @@ class MainWindow(QMainWindow):
         output_group = self._group("OUTPUT")
         output_layout = QFormLayout(output_group)
         self.output_dpi = QComboBox()
+        self.output_dpi.addItem("1000 DPI · Ultra High Quality", 1000)
         self.output_dpi.addItem("600 DPI · High Quality", 600)
         self.output_dpi.addItem("300 DPI · Standard", 300)
         output_layout.addRow("Export resolution", self.output_dpi)
         output_layout.addRow("File formats", QLabel("PDF / JPG / PNG"))
         quality_hint = QLabel(
-            "600 DPI is recommended for sharp photo prints. PNG keeps image data lossless; "
-            "JPEG exports at maximum quality."
+            "1000 DPI provides ultra-high detail but creates very large files and uses more memory. "
+            "600 DPI is recommended for most photo prints. PNG is lossless; JPEG uses maximum quality."
         )
         quality_hint.setWordWrap(True)
         quality_hint.setObjectName("helperText")
