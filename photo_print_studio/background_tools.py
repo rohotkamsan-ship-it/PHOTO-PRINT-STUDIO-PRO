@@ -32,8 +32,8 @@ def _get_rembg_session():
         from rembg import new_session
     except ImportError as exc:
         raise RuntimeError(
-            "AI background removal components are missing. "
-            "Please reinstall PHOTO PRINT STUDIO PRO."
+            "AI background-removal components could not be loaded from this installation. "
+            "Please reinstall PHOTO PRINT STUDIO PRO. Details: " + str(exc)
         ) from exc
 
     try:
