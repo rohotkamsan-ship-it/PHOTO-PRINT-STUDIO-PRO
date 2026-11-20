@@ -144,6 +144,9 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(splitter, 1)
 
         footer = QHBoxLayout()
+        back_button = QPushButton("←  Back · Photo Preparation")
+        back_button.clicked.connect(self.back_to_preparation)
+        footer.addWidget(back_button)
         self.status = QLabel("Ready · Load a photo to begin")
         footer.addWidget(self.status, 1)
         pdf_button = QPushButton("Export PDF")
@@ -310,6 +313,19 @@ class MainWindow(QMainWindow):
             self.paper_w.blockSignals(False)
             self.paper_h.blockSignals(False)
         self.recalculate()
+
+    def back_to_preparation(self):
+        # Reopen Step 1 with the current photo set so the user can revise
+        # background removal or replace/add photos without losing their work.
+        from .photo_preparation import PhotoPreparationDialog
+
+        dialog = PhotoPreparationDialog(self, initial_images=self.image_paths)
+        if dialog.exec() == dialog.DialogCode.Accepted:
+            self.image_paths = list(dialog.prepared_paths)
+            self.recalculate()
+            self.status.setText(
+                f"Returned from Photo Preparation · {len(self.image_paths)} photo(s) ready"
+            )
 
     def load_images(self):
         paths, _ = QFileDialog.getOpenFileNames(
