@@ -1,8 +1,8 @@
 """Main PHOTO PRINT STUDIO PRO UI."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QSize
-from PySide6.QtGui import QAction, QColor, QPainter, QPen
+from PySide6.QtCore import Qt, QSize, QRectF
+from PySide6.QtGui import QAction, QColor, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QComboBox, QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel,
     QMainWindow, QMessageBox, QPushButton, QSpinBox, QDoubleSpinBox,
@@ -22,7 +22,12 @@ class SheetPreview(QWidget):
         self.paper_width = 210.0
         self.paper_height = 297.0
         self.placements = []
+        self.image_paths: list[str] = []
         self.photo_color = QColor("#dce7f3")
+
+    def set_images(self, image_paths: list[str]) -> None:
+        self.image_paths = list(image_paths)
+        self.update()
 
     def set_sheet(self, width: float, height: float, placements) -> None:
         self.paper_width, self.paper_height = width, height
@@ -49,15 +54,35 @@ class SheetPreview(QWidget):
         painter.setBrush(QColor("#ffffff"))
         painter.drawRoundedRect(int(left), int(top), int(page_w), int(page_h), 4, 4)
         painter.setPen(QPen(QColor("#9aa8b8"), 1, Qt.PenStyle.DashLine))
-        for item in self.placements:
+        for index, item in enumerate(self.placements):
             x = left + item.x_mm * scale
             y = top + item.y_mm * scale
             w, h = item.width_mm * scale, item.height_mm * scale
-            painter.setBrush(self.photo_color)
-            painter.drawRect(int(x), int(y), max(1, int(w)), max(1, int(h)))
-            painter.setPen(QColor("#52657a"))
-            painter.drawText(int(x), int(y), int(w), int(h), Qt.AlignmentFlag.AlignCenter, "PHOTO")
+            target = QRectF(x, y, w, h)
+            if self.image_paths:
+                pixmap = QPixmap(self.image_paths[index % len(self.image_paths)])
+                if not pixmap.isNull():
+                    self._draw_fitted_photo(painter, pixmap, target)
+            else:
+                painter.fillRect(target, self.photo_color)
+                painter.setPen(QColor("#52657a"))
+                painter.drawText(target, Qt.AlignmentFlag.AlignCenter, "LOAD PHOTO")
             painter.setPen(QPen(QColor("#9aa8b8"), 1, Qt.PenStyle.DashLine))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(target)
+
+    @staticmethod
+    def _draw_fitted_photo(painter: QPainter, pixmap: QPixmap, target: QRectF) -> None:
+        tw, th = max(1, int(target.width())), max(1, int(target.height()))
+        scaled = pixmap.scaled(tw, th, Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                               Qt.TransformationMode.SmoothTransformation)
+        sx = max(0, (scaled.width() - tw) // 2)
+        sy = max(0, (scaled.height() - th) // 2)
+        source = scaled.rect().adjusted(sx, sy, sx - (scaled.width() - tw), sy - (scaled.height() - th))
+        painter.save()
+        painter.setClipRect(target)
+        painter.drawPixmap(target.toRect(), scaled, source)
+        painter.restore()
 
 
 class MainWindow(QMainWindow):
@@ -189,14 +214,14 @@ class MainWindow(QMainWindow):
         copies_form = QFormLayout(copies_group)
         self.copies = QSpinBox()
         self.copies.setRange(1, 999)
-        self.copies.setValue(8)
+        self.copies.setValue(1)
         self.margin = QDoubleSpinBox()
         self.margin.setRange(0, 50)
         self.margin.setValue(5)
         self.spacing = QDoubleSpinBox()
         self.spacing.setRange(0, 30)
         self.spacing.setValue(3)
-        copies_form.addRow("Copies", self.copies)
+        copies_form.addRow("Copies per photo", self.copies)
         copies_form.addRow("Margin (mm)", self.margin)
         copies_form.addRow("Spacing (mm)", self.spacing)
         for control in (self.copies, self.margin, self.spacing):
@@ -309,15 +334,17 @@ class MainWindow(QMainWindow):
                 self.margin.value(), self.spacing.value()
             )
             self.preview.set_sheet(pw, ph, placements)
+            self.preview.set_images(self.image_paths)
             orientation = self.orientation.currentText()
             self.page_info.setText(
                 f"{self.paper.currentText()} · {orientation} · "
                 f"{pw:g} × {ph:g} mm · {len(placements)} photos / page · 300 DPI"
             )
             if self.image_paths:
-                self.status.setText(f"{len(self.image_paths)} image(s) loaded · layout ready")
+                self.status.setText(f"{len(self.image_paths)} photo(s) · {self.copies.value()} copy/copies each · {len(placements)} placed on this sheet")
         except ValueError as error:
             self.preview.set_sheet(self.paper_w.value(), self.paper_h.value(), [])
+            self.preview.set_images(self.image_paths)
             self.status.setText(str(error))
 
 
@@ -345,14 +372,17 @@ class MainWindow(QMainWindow):
             page_h = self.preview.paper_height * scale
             left = rect.x() + (rect.width() - page_w) / 2
             top = rect.y() + (rect.height() - page_h) / 2
-            for item in self.preview.placements:
+            for index, item in enumerate(self.preview.placements):
                 x, y = left + item.x_mm * scale, top + item.y_mm * scale
                 w, h = item.width_mm * scale, item.height_mm * scale
+                target = QRectF(x, y, w, h)
+                if self.image_paths:
+                    pixmap = QPixmap(self.image_paths[index % len(self.image_paths)])
+                    if not pixmap.isNull():
+                        SheetPreview._draw_fitted_photo(painter, pixmap, target)
                 painter.setPen(QPen(QColor("#8b98a8"), 2))
-                painter.setBrush(QColor("#e3eaf2"))
-                painter.drawRect(int(x), int(y), int(w), int(h))
-                painter.setPen(QColor("#42566f"))
-                painter.drawText(int(x), int(y), int(w), int(h), Qt.AlignmentFlag.AlignCenter, "PHOTO")
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRect(target)
         finally:
             painter.end()
         self.status.setText(f"PDF exported: {path}")
@@ -371,14 +401,17 @@ class MainWindow(QMainWindow):
                 page_h = self.preview.paper_height * scale
                 left = rect.x() + (rect.width() - page_w) / 2
                 top = rect.y() + (rect.height() - page_h) / 2
-                for item in self.preview.placements:
+                for index, item in enumerate(self.preview.placements):
                     x, y = left + item.x_mm * scale, top + item.y_mm * scale
                     w, h = item.width_mm * scale, item.height_mm * scale
+                    target = QRectF(x, y, w, h)
+                    if self.image_paths:
+                        pixmap = QPixmap(self.image_paths[index % len(self.image_paths)])
+                        if not pixmap.isNull():
+                            SheetPreview._draw_fitted_photo(painter, pixmap, target)
                     painter.setPen(QPen(QColor("#8b98a8"), 2))
-                    painter.setBrush(QColor("#e3eaf2"))
-                    painter.drawRect(int(x), int(y), int(w), int(h))
-                    painter.setPen(QColor("#42566f"))
-                    painter.drawText(int(x), int(y), int(w), int(h), Qt.AlignmentFlag.AlignCenter, "PHOTO")
+                    painter.setBrush(Qt.BrushStyle.NoBrush)
+                    painter.drawRect(target)
                 painter.end()
 
     def _apply_style(self):
