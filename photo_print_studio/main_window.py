@@ -302,7 +302,7 @@ class MainWindow(QMainWindow):
         paper_group = self._group("PAPER SETTINGS")
         form = QFormLayout(paper_group)
         self.paper = QComboBox()
-        self.paper.addItems(["A4", "A5", "Custom"])
+        self.paper.addItems(["A4", "A5", "10x15 cm", "Custom"])
         self.orientation = QComboBox()
         self.orientation.addItems(["Portrait", "Landscape"])
         self.paper_w = QDoubleSpinBox()
@@ -479,7 +479,11 @@ class MainWindow(QMainWindow):
         printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
         printer.setOutputFileName(path)
         printer.setResolution(int(self.output_dpi.currentData()))
-        page_size = QPageSize(QPageSize.PageSizeId.A4 if self.paper.currentText() == "A4" else QPageSize.PageSizeId.A5)
+        page_size = QPageSize(
+            QSizeF(self.preview.paper_width, self.preview.paper_height),
+            QPageSize.Unit.Millimeter,
+            self.paper.currentText()
+        )
         printer.setPageSize(page_size)
         printer.setPageOrientation(QPageLayout.Orientation.Portrait if self.orientation.currentText() == "Portrait" else QPageLayout.Orientation.Landscape)
         painter = QPainter()
@@ -574,8 +578,20 @@ class MainWindow(QMainWindow):
 
     def print_sheet(self):
         from PySide6.QtPrintSupport import QPrintDialog, QPrinter
+        from PySide6.QtGui import QPageLayout, QPageSize
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-        printer.setResolution(300)
+        printer.setResolution(int(self.output_dpi.currentData()))
+        page_size = QPageSize(
+            QSizeF(self.preview.paper_width, self.preview.paper_height),
+            QPageSize.Unit.Millimeter,
+            self.paper.currentText()
+        )
+        printer.setPageSize(page_size)
+        printer.setPageOrientation(
+            QPageLayout.Orientation.Portrait
+            if self.orientation.currentText() == "Portrait"
+            else QPageLayout.Orientation.Landscape
+        )
         dialog = QPrintDialog(printer, self)
         if dialog.exec():
             painter = QPainter()
