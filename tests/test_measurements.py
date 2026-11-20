@@ -1,6 +1,6 @@
 import pytest
 
-from photo_print_studio.measurements import photo_size, unit_to_mm, mm_to_unit
+from photo_print_studio.measurements import photo_size, paper_size, unit_to_mm, mm_to_unit
 
 
 def test_photo_preset_switches_units():
@@ -15,3 +15,7 @@ def test_unit_conversion_round_trip():
 def test_unknown_unit_fails():
     with pytest.raises(ValueError):
         mm_to_unit(10, "inch")
+
+
+def test_10x15_cm_paper_preset():
+    assert paper_size("10x15 cm") == (100.0, 150.0)

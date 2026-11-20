@@ -1,7 +1,7 @@
 """Main PHOTO PRINT STUDIO PRO UI."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QSize, QRectF
+from PySide6.QtCore import Qt, QSize, QSizeF, QRectF
 from PySide6.QtGui import QAction, QColor, QPainter, QPen, QPixmap, QImage
 from PySide6.QtWidgets import (
     QComboBox, QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel,
@@ -160,7 +160,7 @@ class MainWindow(QMainWindow):
         preview_header = QHBoxLayout()
         title = QLabel("PRINT PREVIEW")
         title.setObjectName("sectionTitle")
-        self.page_info = QLabel("A4 · 300 DPI")
+        self.page_info = QLabel("A4 · 600 DPI")
         preview_header.addWidget(title)
         preview_header.addStretch()
         preview_header.addWidget(self.page_info)
@@ -302,7 +302,7 @@ class MainWindow(QMainWindow):
         paper_group = self._group("PAPER SETTINGS")
         form = QFormLayout(paper_group)
         self.paper = QComboBox()
-        self.paper.addItems(["A4", "A5", "Custom"])
+        self.paper.addItems(["A4", "A5", "10x15 cm", "Custom"])
         self.orientation = QComboBox()
         self.orientation.addItems(["Portrait", "Landscape"])
         self.paper_w = QDoubleSpinBox()
@@ -327,10 +327,20 @@ class MainWindow(QMainWindow):
         layout.addWidget(paper_group)
 
         output_group = self._group("OUTPUT")
-        output_layout = QVBoxLayout(output_group)
-        output_layout.addWidget(QLabel("Resolution: 300 DPI"))
-        output_layout.addWidget(QLabel("Output: PDF / JPG / PNG"))
-        output_layout.addWidget(QLabel("Preview is a layout simulation until a photo is loaded."))
+        output_layout = QFormLayout(output_group)
+        self.output_dpi = QComboBox()
+        self.output_dpi.addItem("600 DPI · High Quality", 600)
+        self.output_dpi.addItem("300 DPI · Standard", 300)
+        output_layout.addRow("Export resolution", self.output_dpi)
+        output_layout.addRow("File formats", QLabel("PDF / JPG / PNG"))
+        quality_hint = QLabel(
+            "600 DPI is recommended for sharp photo prints. PNG keeps image data lossless; "
+            "JPEG exports at maximum quality."
+        )
+        quality_hint.setWordWrap(True)
+        quality_hint.setObjectName("helperText")
+        output_layout.addRow(quality_hint)
+        self.output_dpi.currentIndexChanged.connect(self.recalculate)
         layout.addWidget(output_group)
         layout.addStretch()
         return panel
@@ -445,7 +455,7 @@ class MainWindow(QMainWindow):
             orientation = self.orientation.currentText()
             self.page_info.setText(
                 f"{self.paper.currentText()} · {orientation} · "
-                f"{pw:g} × {ph:g} mm · {len(placements)} photos / page · 300 DPI"
+                f"{pw:g} × {ph:g} mm · {len(placements)} photos / page · {self.output_dpi.currentData()} DPI"
             )
             if self.image_paths:
                 self.status.setText(
@@ -468,8 +478,12 @@ class MainWindow(QMainWindow):
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
         printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
         printer.setOutputFileName(path)
-        printer.setResolution(300)
-        page_size = QPageSize(QPageSize.PageSizeId.A4 if self.paper.currentText() == "A4" else QPageSize.PageSizeId.A5)
+        printer.setResolution(int(self.output_dpi.currentData()))
+        page_size = QPageSize(
+            QSizeF(min(self.preview.paper_width, self.preview.paper_height), max(self.preview.paper_width, self.preview.paper_height)),
+            QPageSize.Unit.Millimeter,
+            self.paper.currentText()
+        )
         printer.setPageSize(page_size)
         printer.setPageOrientation(QPageLayout.Orientation.Portrait if self.orientation.currentText() == "Portrait" else QPageLayout.Orientation.Landscape)
         painter = QPainter()
@@ -500,7 +514,7 @@ class MainWindow(QMainWindow):
         self.status.setText(f"PDF exported: {path}")
 
     def export_raster(self, image_format: str):
-        """Export the complete print sheet as a 300-DPI JPG or PNG image."""
+        """Export the complete print sheet at the selected high-resolution DPI."""
         if not self.image_paths:
             QMessageBox.information(self, "No photos loaded", "Please load at least one photo before exporting.")
             return
@@ -518,10 +532,12 @@ class MainWindow(QMainWindow):
         if not path.lower().endswith((".jpg", ".jpeg") if extension == "jpg" else (".png",)):
             path += f".{extension}"
 
-        dpi = 300
+        dpi = int(self.output_dpi.currentData())
         width_px = max(1, round(self.preview.paper_width / 25.4 * dpi))
         height_px = max(1, round(self.preview.paper_height / 25.4 * dpi))
-        image = QImage(width_px, height_px, QImage.Format.Format_RGB32)
+        # RGB888 reduces memory use while preserving full 8-bit-per-channel
+        # color; PNG remains lossless and JPEG is encoded at maximum quality.
+        image = QImage(width_px, height_px, QImage.Format.Format_RGB888)
         image.fill(QColor("#ffffff"))
 
         painter = QPainter(image)
@@ -548,7 +564,7 @@ class MainWindow(QMainWindow):
         if extension == "jpg":
             image.setDotsPerMeterX(round(dpi / 0.0254))
             image.setDotsPerMeterY(round(dpi / 0.0254))
-            saved = image.save(path, "JPG", quality=95)
+            saved = image.save(path, "JPG", quality=100)
         else:
             image.setDotsPerMeterX(round(dpi / 0.0254))
             image.setDotsPerMeterY(round(dpi / 0.0254))
@@ -557,13 +573,25 @@ class MainWindow(QMainWindow):
         if not saved:
             QMessageBox.critical(self, "Export failed", f"Could not save the image file:\\n{path}")
             return
-        self.status.setText(f"{extension.upper()} exported · 300 DPI · {path}")
+        self.status.setText(f"{extension.upper()} exported · {dpi} DPI · {path}")
         QMessageBox.information(self, "Export complete", f"Print sheet exported successfully:\\n{path}")
 
     def print_sheet(self):
         from PySide6.QtPrintSupport import QPrintDialog, QPrinter
+        from PySide6.QtGui import QPageLayout, QPageSize
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-        printer.setResolution(300)
+        printer.setResolution(int(self.output_dpi.currentData()))
+        page_size = QPageSize(
+            QSizeF(self.preview.paper_width, self.preview.paper_height),
+            QPageSize.Unit.Millimeter,
+            self.paper.currentText()
+        )
+        printer.setPageSize(page_size)
+        printer.setPageOrientation(
+            QPageLayout.Orientation.Portrait
+            if self.orientation.currentText() == "Portrait"
+            else QPageLayout.Orientation.Landscape
+        )
         dialog = QPrintDialog(printer, self)
         if dialog.exec():
             painter = QPainter()

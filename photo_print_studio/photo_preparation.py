@@ -276,6 +276,7 @@ class PhotoPreparationDialog(QDialog):
         if not self.source_paths:
             QMessageBox.information(self, "Load photos", "Please load at least one photo first.")
             return
+
         choice = self.background.currentText()
         colors = {
             "White": "#ffffff", "Blue": "#1677d2", "Light Blue": "#9fd5f5",
@@ -284,33 +285,72 @@ class PhotoPreparationDialog(QDialog):
         color = colors.get(choice)
         output_dir = Path.home() / "Pictures" / "PHOTO_PRINT_STUDIO_PRO" / "Prepared"
         output_dir.mkdir(parents=True, exist_ok=True)
+
         progress = QProgressDialog(
-            "Removing photo backgrounds with the free AI model…", "Cancel",
+            "Preparing AI model and removing photo backgrounds…", "Cancel",
             0, len(self.source_paths), self
         )
+        progress.setWindowTitle("AI Background Removal")
         progress.setWindowModality(Qt.WindowModality.WindowModal)
-        results: list[str] = []
+        progress.setMinimumDuration(0)
+        progress.setValue(0)
+        QApplication.processEvents()
+
+        result_by_source: dict[str, str] = {}
+        failures: list[str] = []
+        cancelled = False
         try:
             for index, source in enumerate(self.source_paths):
                 if progress.wasCanceled():
+                    cancelled = True
                     break
-                target = output_dir / f"{Path(source).stem}_prepared.png"
-                progress.setValue(index)
-                QApplication.processEvents()
-                results.append(prepare_image(source, str(target), color))
-            progress.setValue(len(self.source_paths))
-        except Exception as exc:
-            QMessageBox.critical(self, "Background removal failed", str(exc))
-            return
 
-        # Keep untouched originals for any items skipped when the user cancels.
-        if results:
-            result_by_source = dict(zip(self.source_paths, results))
-            self.prepared_paths = [result_by_source.get(path, path) for path in self.source_paths]
+                progress.setLabelText(
+                    f"Removing background {index + 1} of {len(self.source_paths)}…\n"
+                    f"{Path(source).name}"
+                )
+                QApplication.processEvents()
+                target = output_dir / f"{Path(source).stem}_prepared.png"
+                try:
+                    result_by_source[source] = prepare_image(source, str(target), color)
+                except Exception as exc:
+                    failures.append(f"{Path(source).name}: {exc}")
+                finally:
+                    progress.setValue(index + 1)
+                    QApplication.processEvents()
+        finally:
+            progress.close()
+
+        # Keep original photos for files that failed or were skipped after Cancel.
+        self.prepared_paths = [
+            result_by_source.get(path, path) for path in self.source_paths
+        ]
+        if result_by_source:
             self.files.setCurrentRow(0)
+            self._show_preview(0)
+
+        completed = len(result_by_source)
+        if failures:
+            details = "\n\n".join(failures[:5])
+            if len(failures) > 5:
+                details += f"\n…and {len(failures) - 5} more error(s)."
+            QMessageBox.warning(
+                self,
+                "Background removal partially completed",
+                f"Successfully prepared {completed} of {len(self.source_paths)} photo(s).\n"
+                f"Failed: {len(failures)}\n\n{details}\n\n"
+                "Photos that failed remain as their original files."
+            )
+        elif cancelled:
+            QMessageBox.information(
+                self, "Background removal cancelled",
+                f"Prepared {completed} of {len(self.source_paths)} photo(s). "
+                "The remaining photos stay unchanged."
+            )
+        elif completed:
             QMessageBox.information(
                 self, "Background removal complete",
-                f"Prepared {len(results)} of {len(self.source_paths)} photo(s).\nSaved in:\n{output_dir}"
+                f"Successfully prepared all {completed} photo(s).\nSaved in:\n{output_dir}"
             )
 
     def skip_editing(self):
