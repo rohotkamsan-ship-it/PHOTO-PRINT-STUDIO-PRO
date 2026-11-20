@@ -27,7 +27,9 @@ jobs:
           pip install -r requirements-build.txt
 
       - name: Run tests
-        run: pytest -q
+        run: python -m pytest -q
+        env:
+          PYTHONPATH: .
 
       - name: Build application
         run: pyinstaller --noconfirm --clean --windowed --name "PhotoPrintStudioPro" main.py
