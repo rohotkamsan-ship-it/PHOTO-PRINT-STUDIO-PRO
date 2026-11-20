@@ -51,7 +51,7 @@ class ImagePreviewLabel(QLabel):
 class PhotoPreparationDialog(QDialog):
     """Load photos, optionally remove their backgrounds, and choose a fill color."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, initial_images=None):
         super().__init__(parent)
         self.setWindowTitle("Photo Preparation · PHOTO PRINT STUDIO PRO")
         self.resize(1180, 780)
@@ -59,6 +59,9 @@ class PhotoPreparationDialog(QDialog):
         self.source_paths: list[str] = []
         self.prepared_paths: list[str] = []
         self.background_color = "#ffffff"
+        initial_images = list(initial_images or [])
+        self.source_paths = list(initial_images)
+        self.prepared_paths = list(initial_images)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(22, 18, 22, 18)
@@ -185,6 +188,12 @@ class PhotoPreparationDialog(QDialog):
         next_button.clicked.connect(self.continue_to_print)
         footer.addWidget(next_button)
         root.addLayout(footer)
+
+        if initial_images:
+            self.files.addItems([Path(path).name for path in initial_images])
+            self.photo_count.setText(f"{len(initial_images)} photo(s) loaded")
+            self.files.setCurrentRow(0)
+            self._show_preview(0)
 
         self.setStyleSheet("""
             QDialog { background: #f3f6fb; }
