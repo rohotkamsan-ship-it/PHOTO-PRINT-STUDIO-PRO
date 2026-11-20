@@ -128,9 +128,21 @@ class MainWindow(QMainWindow):
         open_action.triggered.connect(self.load_images)
         file_menu.addAction(open_action)
         file_menu.addSeparator()
+        about_action = QAction("About PHOTO PRINT STUDIO PRO", self)
+        about_action.triggered.connect(self.show_about)
+        file_menu.addAction(about_action)
         exit_action = QAction("Exit", self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
+
+    def show_about(self):
+        QMessageBox.about(
+            self,
+            "About PHOTO PRINT STUDIO PRO",
+            "<b>PHOTO PRINT STUDIO PRO</b><br>"
+            "Professional Photo Printing<br><br>"
+            "Created by <b>Mr. Sam Oun</b>"
+        )
 
     def _build_ui(self):
         root = QWidget()
@@ -169,6 +181,9 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(splitter, 1)
 
         footer = QHBoxLayout()
+        creator = QLabel("Created by Mr. Sam Oun")
+        creator.setObjectName("creatorCredit")
+        footer.addWidget(creator)
         back_button = QPushButton("←  Back · Photo Preparation")
         back_button.clicked.connect(self.back_to_preparation)
         footer.addWidget(back_button)
@@ -581,6 +596,7 @@ class MainWindow(QMainWindow):
             QMenu { color: #1e293b; background: #ffffff; }
             QMenu::item { color: #1e293b; padding: 6px 24px; }
             #header { background: #182638; color: white; padding: 16px; font-size: 18px; font-weight: 700; }
+            #creatorCredit { color: #52657a; font-size: 11px; font-weight: 700; padding: 4px 8px; }
             #previewPanel { background: #e5eaf1; border: 1px solid #d0d8e2; border-radius: 10px; }
             #sectionTitle { font-size: 16px; font-weight: 700; color: #26384d; }
             QGroupBox { font-weight: 700; color: #34465a; border: 1px solid #d2dbe6; border-radius: 8px; margin-top: 12px; padding: 12px 8px 8px; background: white; }
