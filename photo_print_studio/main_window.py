@@ -329,8 +329,11 @@ class MainWindow(QMainWindow):
             unit = self.unit.currentText()
             factor = 10.0 if unit == "cm" else 1.0
             photo_w, photo_h = self.photo_w.value() * factor, self.photo_h.value() * factor
+            # Copies means copies per loaded image. At the default of 1,
+            # every loaded photo is placed once, in row-major order.
+            requested_slots = max(1, len(self.image_paths)) * self.copies.value()
             placements = calculate_layout(
-                pw, ph, photo_w, photo_h, self.copies.value(),
+                pw, ph, photo_w, photo_h, requested_slots,
                 self.margin.value(), self.spacing.value()
             )
             self.preview.set_sheet(pw, ph, placements)
@@ -341,7 +344,10 @@ class MainWindow(QMainWindow):
                 f"{pw:g} × {ph:g} mm · {len(placements)} photos / page · 300 DPI"
             )
             if self.image_paths:
-                self.status.setText(f"{len(self.image_paths)} photo(s) · {self.copies.value()} copy/copies each · {len(placements)} placed on this sheet")
+                self.status.setText(
+                    f"{len(self.image_paths)} photo(s) · {self.copies.value()} copy/copies each · "
+                    f"{len(placements)} of {requested_slots} placed on this sheet"
+                )
         except ValueError as error:
             self.preview.set_sheet(self.paper_w.value(), self.paper_h.value(), [])
             self.preview.set_images(self.image_paths)
