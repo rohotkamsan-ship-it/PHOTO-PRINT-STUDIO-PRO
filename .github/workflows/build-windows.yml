@@ -32,7 +32,7 @@ jobs:
           PYTHONPATH: .
 
       - name: Build application
-        run: pyinstaller --noconfirm --clean --windowed --collect-all rembg --collect-all onnxruntime --collect-all pooch --name "PhotoPrintStudioPro" main.py
+        run: pyinstaller --noconfirm --clean --windowed --hidden-import=_socket --hidden-import=socket --collect-all rembg --collect-all onnxruntime --collect-all pooch --name "PhotoPrintStudioPro" main.py
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
