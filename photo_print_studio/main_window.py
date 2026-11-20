@@ -344,8 +344,8 @@ class MainWindow(QMainWindow):
             QPushButton { background: #ffffff; border: 1px solid #c8d3df; border-radius: 6px; padding: 9px 12px; }
             QPushButton:hover { border-color: #397fc2; }
             #primaryButton { background: #246fc1; color: white; font-weight: 700; }
-            QLabel { color: #30445b; }
-            QComboBox, QSpinBox, QDoubleSpinBox { background: white; border: 1px solid #c8d3df; border-radius: 5px; padding: 5px; min-height: 22px; }
+            QLabel { color: #30445b; font-size: 12px; } #helperText { color: #64748b; font-size: 11px; }
+            QComboBox, QSpinBox, QDoubleSpinBox { background: #ffffff; color: #1e293b; border: 1px solid #b8c7d8; border-radius: 6px; padding: 6px 8px; min-height: 26px; font-size: 12px; selection-background-color: #246fc1; } QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover { border: 1px solid #397fc2; } QComboBox QAbstractItemView { background: #ffffff; color: #1e293b; selection-background-color: #246fc1; selection-color: #ffffff; }
         """)
 
 
