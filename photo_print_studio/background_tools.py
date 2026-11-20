@@ -1,6 +1,8 @@
 """Reliable local AI background removal using rembg and ONNX Runtime."""
 from __future__ import annotations
 
+import os
+import sys
 from pathlib import Path
 from functools import lru_cache
 from io import BytesIO
@@ -8,9 +10,24 @@ from io import BytesIO
 from PIL import Image, ImageOps
 
 
+# PyInstaller windowed applications may start with stdout/stderr set to None.
+# Some rembg/ONNX Runtime initialization paths write diagnostics to these streams.
+_NULL_STREAMS = []
+
+
+def _ensure_stdio():
+    """Provide writable standard streams for libraries inside GUI/frozen builds."""
+    for name in ("stdout", "stderr"):
+        if getattr(sys, name, None) is None:
+            stream = open(os.devnull, "w", encoding="utf-8")
+            _NULL_STREAMS.append(stream)
+            setattr(sys, name, stream)
+
+
 @lru_cache(maxsize=1)
 def _get_rembg_session():
     """Create one reusable CPU session; the model is downloaded on first use."""
+    _ensure_stdio()
     try:
         from rembg import new_session
     except ImportError as exc:
@@ -24,17 +41,19 @@ def _get_rembg_session():
     except Exception as exc:
         raise RuntimeError(
             "Could not initialize the AI background-removal model. "
-            "On first use, connect to the internet so the free U2-Net model "
-            "can download, then try again. Details: " + str(exc)
+            "Check your internet connection on first use so the free U2-Net "
+            "model can download. Technical details: " + str(exc)
         ) from exc
 
 
 def prepare_image(source: str, output: str, background: str | None = None) -> str:
     """Remove a photo background and optionally composite a solid color.
 
-    The rembg API is called with PNG bytes rather than a PIL object to keep
-    input/output behavior consistent across rembg releases and frozen EXEs.
+    rembg receives PNG bytes for consistent behavior across releases and
+    frozen EXEs. Standard streams are repaired before importing rembg because
+    importing or initializing ONNX Runtime may emit diagnostic messages.
     """
+    _ensure_stdio()
     try:
         from rembg import remove
     except ImportError as exc:
