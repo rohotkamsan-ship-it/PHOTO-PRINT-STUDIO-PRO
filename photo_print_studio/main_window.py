@@ -1,7 +1,7 @@
 """Main PHOTO PRINT STUDIO PRO UI."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QSize, QRectF
+from PySide6.QtCore import Qt, QSize, QSizeF, QRectF
 from PySide6.QtGui import QAction, QColor, QPainter, QPen, QPixmap, QImage
 from PySide6.QtWidgets import (
     QComboBox, QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel,
@@ -480,7 +480,7 @@ class MainWindow(QMainWindow):
         printer.setOutputFileName(path)
         printer.setResolution(int(self.output_dpi.currentData()))
         page_size = QPageSize(
-            QSizeF(self.preview.paper_width, self.preview.paper_height),
+            QSizeF(min(self.preview.paper_width, self.preview.paper_height), max(self.preview.paper_width, self.preview.paper_height)),
             QPageSize.Unit.Millimeter,
             self.paper.currentText()
         )
