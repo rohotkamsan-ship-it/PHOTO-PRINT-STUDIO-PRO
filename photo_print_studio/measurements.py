@@ -12,6 +12,7 @@ PHOTO_PRESETS_MM: dict[str, tuple[float, float]] = {
 PAPER_PRESETS_MM: dict[str, tuple[float, float]] = {
     "A4": (210.0, 297.0),
     "A5": (148.0, 210.0),
+    "10x15 cm": (100.0, 150.0),
 }
 
 
