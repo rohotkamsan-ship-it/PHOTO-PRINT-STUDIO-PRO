@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QSize, QRectF
-from PySide6.QtGui import QAction, QColor, QPainter, QPen, QPixmap
+from PySide6.QtGui import QAction, QColor, QPainter, QPen, QPixmap, QImage
 from PySide6.QtWidgets import (
     QComboBox, QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel,
     QMainWindow, QMessageBox, QPushButton, QSpinBox, QDoubleSpinBox,
@@ -179,8 +179,8 @@ class MainWindow(QMainWindow):
         footer.addWidget(pdf_button)
         jpg_button = QPushButton("Export JPG")
         png_button = QPushButton("Export PNG")
-        jpg_button.setEnabled(False)
-        png_button.setEnabled(False)
+        jpg_button.clicked.connect(lambda: self.export_raster("jpg"))
+        png_button.clicked.connect(lambda: self.export_raster("png"))
         footer.addWidget(jpg_button)
         footer.addWidget(png_button)
         print_button = QPushButton("Print")
@@ -483,6 +483,67 @@ class MainWindow(QMainWindow):
         finally:
             painter.end()
         self.status.setText(f"PDF exported: {path}")
+
+    def export_raster(self, image_format: str):
+        """Export the complete print sheet as a 300-DPI JPG or PNG image."""
+        if not self.image_paths:
+            QMessageBox.information(self, "No photos loaded", "Please load at least one photo before exporting.")
+            return
+        if not self.preview.placements:
+            QMessageBox.warning(self, "No layout", "The current photo size does not fit on the selected paper.")
+            return
+
+        image_format = image_format.lower()
+        extension = "jpg" if image_format in ("jpg", "jpeg") else "png"
+        default_name = f"photo-sheet.{extension}"
+        file_filter = "JPEG Image (*.jpg *.jpeg)" if extension == "jpg" else "PNG Image (*.png)"
+        path, _ = QFileDialog.getSaveFileName(self, f"Export {extension.upper()}", default_name, file_filter)
+        if not path:
+            return
+        if not path.lower().endswith((".jpg", ".jpeg") if extension == "jpg" else (".png",)):
+            path += f".{extension}"
+
+        dpi = 300
+        width_px = max(1, round(self.preview.paper_width / 25.4 * dpi))
+        height_px = max(1, round(self.preview.paper_height / 25.4 * dpi))
+        image = QImage(width_px, height_px, QImage.Format.Format_RGB32)
+        image.fill(QColor("#ffffff"))
+
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        scale = dpi / 25.4
+        for index, item in enumerate(self.preview.placements):
+            target = QRectF(
+                item.x_mm * scale, item.y_mm * scale,
+                item.width_mm * scale, item.height_mm * scale
+            )
+            source_path = self.image_paths[index % len(self.image_paths)]
+            pixmap = self.preview._pixmap_cache.get(source_path)
+            if pixmap is None or pixmap.isNull():
+                pixmap = QPixmap(source_path)
+            if not pixmap.isNull():
+                SheetPreview._draw_fitted_photo(painter, pixmap, target)
+            if self.border_enabled.isChecked():
+                painter.setPen(QPen(QColor(self._border_color), max(1.0, scale * 0.25)))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRect(target)
+        painter.end()
+
+        if extension == "jpg":
+            image.setDotsPerMeterX(round(dpi / 0.0254))
+            image.setDotsPerMeterY(round(dpi / 0.0254))
+            saved = image.save(path, "JPG", quality=95)
+        else:
+            image.setDotsPerMeterX(round(dpi / 0.0254))
+            image.setDotsPerMeterY(round(dpi / 0.0254))
+            saved = image.save(path, "PNG")
+
+        if not saved:
+            QMessageBox.critical(self, "Export failed", f"Could not save the image file:\\n{path}")
+            return
+        self.status.setText(f"{extension.upper()} exported · 300 DPI · {path}")
+        QMessageBox.information(self, "Export complete", f"Print sheet exported successfully:\\n{path}")
 
     def print_sheet(self):
         from PySide6.QtPrintSupport import QPrintDialog, QPrinter
