@@ -32,9 +32,16 @@ jobs:
       - name: Build application
         run: pyinstaller --noconfirm --clean --windowed --name "PhotoPrintStudioPro" main.py
 
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhotoPrintStudioPro-EXE
+          path: dist/PhotoPrintStudioPro.exe
+          if-no-files-found: warn
+
       - name: Upload EXE folder
         uses: actions/upload-artifact@v4
         with:
           name: PHOTO-PRINT-STUDIO-PRO-Windows
           path: dist/PhotoPrintStudioPro/
-          if-no-files-found: error
+          if-no-files-found: warn
