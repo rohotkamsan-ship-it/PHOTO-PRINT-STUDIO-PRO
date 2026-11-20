@@ -24,12 +24,17 @@ class SheetPreview(QWidget):
         self.paper_height = 297.0
         self.placements = []
         self.image_paths: list[str] = []
+        self._pixmap_cache: dict[str, QPixmap] = {}
         self.photo_color = QColor("#dce7f3")
         self.border_enabled = False
         self.border_color = QColor("#222222")
 
     def set_images(self, image_paths: list[str]) -> None:
         self.image_paths = list(image_paths)
+        self._pixmap_cache = {}
+        for path in self.image_paths:
+            if path not in self._pixmap_cache:
+                self._pixmap_cache[path] = QPixmap(path)
         self.update()
 
     def set_cut_border(self, enabled: bool, color: QColor) -> None:
@@ -46,6 +51,7 @@ class SheetPreview(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         area = self.rect().adjusted(28, 28, -28, -28)
         available_w = max(1, area.width())
         available_h = max(1, area.height())
@@ -68,8 +74,8 @@ class SheetPreview(QWidget):
             w, h = item.width_mm * scale, item.height_mm * scale
             target = QRectF(x, y, w, h)
             if self.image_paths:
-                pixmap = QPixmap(self.image_paths[index % len(self.image_paths)])
-                if not pixmap.isNull():
+                pixmap = self._pixmap_cache.get(self.image_paths[index % len(self.image_paths)])
+                if pixmap is not None and not pixmap.isNull():
                     self._draw_fitted_photo(painter, pixmap, target)
             else:
                 painter.fillRect(target, self.photo_color)
@@ -82,15 +88,22 @@ class SheetPreview(QWidget):
 
     @staticmethod
     def _draw_fitted_photo(painter: QPainter, pixmap: QPixmap, target: QRectF) -> None:
-        tw, th = max(1, int(target.width())), max(1, int(target.height()))
-        scaled = pixmap.scaled(tw, th, Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                               Qt.TransformationMode.SmoothTransformation)
-        sx = max(0, (scaled.width() - tw) // 2)
-        sy = max(0, (scaled.height() - th) // 2)
-        source = scaled.rect().adjusted(sx, sy, sx - (scaled.width() - tw), sy - (scaled.height() - th))
+        # Crop the source rectangle mathematically, then let QPainter scale
+        # directly from the original-resolution pixmap to the output target.
+        # This avoids an intermediate low-resolution pixmap and double resampling.
+        source_w, source_h = pixmap.width(), pixmap.height()
+        target_ratio = target.width() / max(1.0, target.height())
+        source_ratio = source_w / max(1.0, source_h)
+        if source_ratio > target_ratio:
+            crop_w = source_h * target_ratio
+            source = QRectF((source_w - crop_w) / 2, 0, crop_w, source_h)
+        else:
+            crop_h = source_w / target_ratio
+            source = QRectF(0, (source_h - crop_h) / 2, source_w, crop_h)
         painter.save()
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         painter.setClipRect(target)
-        painter.drawPixmap(target.toRect(), scaled, source)
+        painter.drawPixmap(target, pixmap, source)
         painter.restore()
 
 
@@ -486,14 +499,21 @@ class MainWindow(QMainWindow):
     def _apply_style(self):
         self.setStyleSheet("""
             QMainWindow { background: #eef2f7; }
+            QMenuBar { color: #1e293b; background: #eef2f7; }
+            QMenuBar::item { color: #1e293b; padding: 5px 9px; }
+            QMenu { color: #1e293b; background: #ffffff; }
+            QMenu::item { color: #1e293b; padding: 6px 24px; }
             #header { background: #182638; color: white; padding: 16px; font-size: 18px; font-weight: 700; }
             #previewPanel { background: #e5eaf1; border: 1px solid #d0d8e2; border-radius: 10px; }
             #sectionTitle { font-size: 16px; font-weight: 700; color: #26384d; }
             QGroupBox { font-weight: 700; color: #34465a; border: 1px solid #d2dbe6; border-radius: 8px; margin-top: 12px; padding: 12px 8px 8px; background: white; }
             QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px; }
-            QPushButton { background: #ffffff; border: 1px solid #c8d3df; border-radius: 6px; padding: 9px 12px; }
+            QPushButton { color: #1e293b; background: #ffffff; border: 1px solid #c8d3df; border-radius: 6px; padding: 9px 12px; font-size: 12px; font-weight: 600; }
+            QPushButton:disabled { color: #64748b; background: #e8edf3; }
+            QCheckBox { color: #1e293b; spacing: 8px; font-size: 12px; }
             QPushButton:hover { border-color: #397fc2; }
-            #primaryButton { background: #246fc1; color: white; font-weight: 700; }
+            #primaryButton { background: #246fc1; color: #ffffff; font-weight: 700; }
+            #primaryButton:disabled { color: #ffffff; }
             QLabel { color: #30445b; font-size: 12px; } #helperText { color: #64748b; font-size: 11px; }
             QComboBox, QSpinBox, QDoubleSpinBox { background: #ffffff; color: #1e293b; border: 1px solid #b8c7d8; border-radius: 6px; padding: 6px 8px; min-height: 26px; font-size: 12px; selection-background-color: #246fc1; } QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover { border: 1px solid #397fc2; } QComboBox QAbstractItemView { background: #ffffff; color: #1e293b; selection-background-color: #246fc1; selection-color: #ffffff; }
         """)
