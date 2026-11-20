@@ -216,6 +216,7 @@ class MainWindow(QMainWindow):
         self.unit.addItems(["mm", "cm"])
         self.photo_orientation = QComboBox()
         self.photo_orientation.addItems(["Portrait", "Landscape"])
+        self._last_photo_orientation = self.photo_orientation.currentText()
         self.photo_w = QDoubleSpinBox()
         self.photo_h = QDoubleSpinBox()
         for spin in (self.photo_w, self.photo_h):
@@ -229,8 +230,10 @@ class MainWindow(QMainWindow):
         self.preset.currentTextChanged.connect(self._preset_changed)
         self.unit.currentTextChanged.connect(self._preset_changed)
         self.photo_orientation.currentTextChanged.connect(self._photo_orientation_changed)
-        self.photo_w.valueChanged.connect(self.recalculate)
-        self.photo_h.valueChanged.connect(self.recalculate)
+        self.photo_w.valueChanged.connect(self._custom_photo_dimensions_changed)
+        self.photo_h.valueChanged.connect(self._custom_photo_dimensions_changed)
+        # Apply the default 3x4 preset immediately after all controls are connected.
+        self._preset_changed()
         photo_hint = QLabel("Choose a standard photo size or enter custom width and height. Unit applies to both dimensions.")
         photo_hint.setWordWrap(True)
         photo_hint.setObjectName("helperText")
@@ -329,35 +332,49 @@ class MainWindow(QMainWindow):
             self.border_color_label.setText(self._border_color)
             self.preview.set_cut_border(self.border_enabled.isChecked(), color)
 
+    def _set_photo_dimensions(self, width: float, height: float) -> None:
+        self.photo_w.blockSignals(True)
+        self.photo_h.blockSignals(True)
+        self.photo_w.setValue(width)
+        self.photo_h.setValue(height)
+        self.photo_w.blockSignals(False)
+        self.photo_h.blockSignals(False)
+
     def _preset_changed(self, *_):
         name, unit = self.preset.currentText(), self.unit.currentText()
         if name in PHOTO_PRESETS_MM:
             width, height = photo_size(name, unit)
             if self.photo_orientation.currentText() == "Landscape":
                 width, height = height, width
-            self.photo_w.blockSignals(True)
-            self.photo_h.blockSignals(True)
-            self.photo_w.setValue(width)
-            self.photo_h.setValue(height)
-            self.photo_w.blockSignals(False)
-            self.photo_h.blockSignals(False)
+            self._set_photo_dimensions(width, height)
+        self._last_photo_orientation = self.photo_orientation.currentText()
+        self.recalculate()
+
+    def _custom_photo_dimensions_changed(self, *_):
+        # Editing either dimension switches to Custom so the selected values
+        # are not silently overwritten by a preset on the next orientation change.
+        if self.preset.currentText() != "Custom":
+            self.preset.blockSignals(True)
+            self.preset.setCurrentText("Custom")
+            self.preset.blockSignals(False)
         self.recalculate()
 
     def _photo_orientation_changed(self, orientation: str):
-        # Presets are defined in portrait dimensions; custom dimensions are swapped
-        # so the selected orientation always matches the displayed width and height.
+        previous = getattr(self, "_last_photo_orientation", "Portrait")
+        if orientation == previous:
+            return
         if self.preset.currentText() == "Custom":
-            width = self.photo_w.value()
-            height = self.photo_h.value()
-            self.photo_w.blockSignals(True)
-            self.photo_h.blockSignals(True)
-            self.photo_w.setValue(height)
-            self.photo_h.setValue(width)
-            self.photo_w.blockSignals(False)
-            self.photo_h.blockSignals(False)
-            self.recalculate()
+            width, height = self.photo_w.value(), self.photo_h.value()
+            self._set_photo_dimensions(height, width)
         else:
-            self._preset_changed()
+            name, unit = self.preset.currentText(), self.unit.currentText()
+            if name in PHOTO_PRESETS_MM:
+                width, height = photo_size(name, unit)
+                if orientation == "Landscape":
+                    width, height = height, width
+                self._set_photo_dimensions(width, height)
+        self._last_photo_orientation = orientation
+        self.recalculate()
 
     def _paper_changed(self, name: str):
         if name in PAPER_PRESETS_MM:
