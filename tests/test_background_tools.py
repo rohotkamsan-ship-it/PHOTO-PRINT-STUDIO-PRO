@@ -79,3 +79,12 @@ def test_prepare_image_composites_selected_background(tmp_path, monkeypatch):
 def test_prepare_image_reports_missing_file(tmp_path):
     with pytest.raises(FileNotFoundError):
         background_tools.prepare_image(str(tmp_path / "missing.png"), str(tmp_path / "out.png"))
+
+
+def test_ensure_stdio_repairs_missing_gui_stream(monkeypatch):
+    import sys
+
+    monkeypatch.setattr(sys, "stderr", None)
+    background_tools._ensure_stdio()
+    assert sys.stderr is not None
+    assert callable(sys.stderr.write)
