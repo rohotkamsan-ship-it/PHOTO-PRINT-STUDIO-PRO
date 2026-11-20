@@ -61,15 +61,17 @@ class SheetPreview(QWidget):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, initial_images=None):
         super().__init__()
         self.setWindowTitle("PHOTO PRINT STUDIO PRO")
         self.resize(1440, 900)
-        self.image_paths: list[str] = []
+        self.image_paths: list[str] = list(initial_images or [])
         self._build_menu()
         self._build_ui()
         self._apply_style()
         self.recalculate()
+        if self.image_paths:
+            self.status.setText(f\"{len(self.image_paths)} prepared photo(s) ready for print layout\")
 
     def _build_menu(self):
         file_menu = self.menuBar().addMenu("File")
