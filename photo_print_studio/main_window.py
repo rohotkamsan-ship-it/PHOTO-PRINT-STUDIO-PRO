@@ -71,7 +71,7 @@ class MainWindow(QMainWindow):
         self._apply_style()
         self.recalculate()
         if self.image_paths:
-            self.status.setText(f\"{len(self.image_paths)} prepared photo(s) ready for print layout\")
+            self.status.setText(f"{len(self.image_paths)} prepared photo(s) ready for print layout")
 
     def _build_menu(self):
         file_menu = self.menuBar().addMenu("File")
