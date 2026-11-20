@@ -116,6 +116,7 @@ class MainWindow(QMainWindow):
         self._border_color = "#222222"
         self._build_menu()
         self._build_ui()
+        self._preset_changed()
         self._apply_style()
         self.recalculate()
         if self.image_paths:
@@ -232,8 +233,6 @@ class MainWindow(QMainWindow):
         self.photo_orientation.currentTextChanged.connect(self._photo_orientation_changed)
         self.photo_w.valueChanged.connect(self._custom_photo_dimensions_changed)
         self.photo_h.valueChanged.connect(self._custom_photo_dimensions_changed)
-        # Apply the default 3x4 preset immediately after all controls are connected.
-        self._preset_changed()
         photo_hint = QLabel("Choose a standard photo size or enter custom width and height. Unit applies to both dimensions.")
         photo_hint.setWordWrap(True)
         photo_hint.setObjectName("helperText")
