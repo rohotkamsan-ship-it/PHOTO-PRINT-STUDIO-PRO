@@ -14,6 +14,40 @@ from PySide6.QtWidgets import (
 from .background_tools import prepare_image
 
 
+class ImagePreviewLabel(QLabel):
+    """Keep the original image and rescale it whenever the preview area changes."""
+
+    def __init__(self, text: str = "", parent=None):
+        super().__init__(text, parent)
+        self._source_pixmap = QPixmap()
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+    def set_image(self, pixmap: QPixmap):
+        self._source_pixmap = pixmap
+        self._update_scaled_pixmap()
+
+    def clear_image(self, message: str = ""):
+        self._source_pixmap = QPixmap()
+        self.setPixmap(QPixmap())
+        self.setText(message)
+
+    def _update_scaled_pixmap(self):
+        if self._source_pixmap.isNull():
+            return
+        target = self.contentsRect().size()
+        if target.width() < 2 or target.height() < 2:
+            return
+        scaled = self._source_pixmap.scaled(
+            target, Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+        self.setPixmap(scaled)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_scaled_pixmap()
+
+
 class PhotoPreparationDialog(QDialog):
     """Load photos, optionally remove their backgrounds, and choose a fill color."""
 
@@ -99,9 +133,8 @@ class PhotoPreparationDialog(QDialog):
         preview_group.setObjectName("panel")
         preview_layout = QVBoxLayout(preview_group)
         preview_layout.setContentsMargins(12, 18, 12, 12)
-        self.preview = QLabel("Load photos to see a preview")
+        self.preview = ImagePreviewLabel("Load photos to see a preview")
         self.preview.setObjectName("imagePreview")
-        self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview.setMinimumSize(400, 390)
         self.preview.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         preview_layout.addWidget(self.preview, 1)
@@ -209,26 +242,17 @@ class PhotoPreparationDialog(QDialog):
 
     def _show_preview(self, row: int):
         if row < 0 or row >= len(self.prepared_paths):
-            self.preview.setText("Load photos to see a preview")
-            self.preview.setPixmap(QPixmap())
+            self.preview.clear_image("Load photos to see a preview")
             self.selection_info.setText("No photo selected")
             return
         path = self.prepared_paths[row]
         pix = QPixmap(path)
         if pix.isNull():
-            self.preview.setText("Unable to preview this image")
-            self.preview.setPixmap(QPixmap())
+            self.preview.clear_image("Unable to preview this image")
         else:
-            self.preview.setPixmap(pix.scaled(
-                self.preview.size(), Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
-            ))
             self.preview.setText("")
+            self.preview.set_image(pix)
         self.selection_info.setText(f"Photo {row + 1} of {len(self.prepared_paths)}  ·  {Path(path).name}")
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self._show_preview(self.files.currentRow())
 
     def _background_changed(self, value: str):
         self.custom_button.setEnabled(value == "Custom color")
