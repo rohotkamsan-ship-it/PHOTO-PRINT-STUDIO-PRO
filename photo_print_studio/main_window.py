@@ -140,6 +140,10 @@ class MainWindow(QMainWindow):
         load.setMinimumHeight(42)
         load.clicked.connect(self.load_images)
         layout.addWidget(load)
+        load_hint = QLabel("Select one or more JPG, PNG, TIFF or WEBP photos to begin.")
+        load_hint.setWordWrap(True)
+        load_hint.setObjectName("helperText")
+        layout.addWidget(load_hint)
 
         photo_group = self._group("PHOTO SIZE")
         form = QFormLayout(photo_group)
@@ -161,6 +165,10 @@ class MainWindow(QMainWindow):
         self.unit.currentTextChanged.connect(self._preset_changed)
         self.photo_w.valueChanged.connect(self.recalculate)
         self.photo_h.valueChanged.connect(self.recalculate)
+        photo_hint = QLabel("Choose a standard photo size or enter custom width and height. Unit applies to both dimensions.")
+        photo_hint.setWordWrap(True)
+        photo_hint.setObjectName("helperText")
+        form.addRow(photo_hint)
         layout.addWidget(photo_group)
 
         copies_group = self._group("COPIES & SPACING")
@@ -208,6 +216,10 @@ class MainWindow(QMainWindow):
         form.addRow("Orientation", self.orientation)
         form.addRow("Custom width (mm)", self.paper_w)
         form.addRow("Custom height (mm)", self.paper_h)
+        paper_hint = QLabel("Choose the paper size and page direction. Select Custom for special paper dimensions.")
+        paper_hint.setWordWrap(True)
+        paper_hint.setObjectName("helperText")
+        form.addRow(paper_hint)
         layout.addWidget(paper_group)
 
         output_group = self._group("OUTPUT")
