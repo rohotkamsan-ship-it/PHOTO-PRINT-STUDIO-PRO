@@ -1,12 +1,12 @@
 """Main PHOTO PRINT STUDIO PRO UI."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QAction, QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QComboBox, QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel,
     QMainWindow, QMessageBox, QPushButton, QSpinBox, QDoubleSpinBox,
-    QSplitter, QVBoxLayout, QWidget, QScrollArea, QGroupBox,
+    QSplitter, QVBoxLayout, QWidget, QScrollArea, QGroupBox, QSizePolicy,
 )
 
 from .measurements import PHOTO_PRESETS_MM, PAPER_PRESETS_MM, photo_size, paper_size
@@ -17,7 +17,8 @@ class SheetPreview(QWidget):
     """Centered paper preview; geometry is calculated in physical millimetres."""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumSize(360, 460)
+        self.setMinimumSize(320, 320)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.paper_width = 210.0
         self.paper_height = 297.0
         self.placements = []
@@ -26,20 +27,27 @@ class SheetPreview(QWidget):
     def set_sheet(self, width: float, height: float, placements) -> None:
         self.paper_width, self.paper_height = width, height
         self.placements = placements
+        self.updateGeometry()
         self.update()
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        area = self.rect().adjusted(24, 24, -24, -24)
-        scale = min(area.width() / self.paper_width, area.height() / self.paper_height)
+        area = self.rect().adjusted(28, 28, -28, -28)
+        available_w = max(1, area.width())
+        available_h = max(1, area.height())
+        # Refit the page whenever paper size, orientation, or preview area changes.
+        scale = min(available_w / self.paper_width, available_h / self.paper_height)
         page_w, page_h = self.paper_width * scale, self.paper_height * scale
         page = self.rect().center()
         left, top = page.x() - page_w / 2, page.y() - page_h / 2
 
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(20, 32, 48, 35))
+        painter.drawRoundedRect(int(left + 4), int(top + 5), int(page_w), int(page_h), 5, 5)
         painter.setPen(QPen(QColor("#aab4c0"), 1))
         painter.setBrush(QColor("#ffffff"))
-        painter.drawRoundedRect(int(left), int(top), int(page_w), int(page_h), 3, 3)
+        painter.drawRoundedRect(int(left), int(top), int(page_w), int(page_h), 4, 4)
         painter.setPen(QPen(QColor("#9aa8b8"), 1, Qt.PenStyle.DashLine))
         for item in self.placements:
             x = left + item.x_mm * scale
@@ -277,7 +285,11 @@ class MainWindow(QMainWindow):
                 self.margin.value(), self.spacing.value()
             )
             self.preview.set_sheet(pw, ph, placements)
-            self.page_info.setText(f"{self.paper.currentText()} · {len(placements)} photos / page · 300 DPI")
+            orientation = self.orientation.currentText()
+            self.page_info.setText(
+                f"{self.paper.currentText()} · {orientation} · "
+                f"{pw:g} × {ph:g} mm · {len(placements)} photos / page · 300 DPI"
+            )
             if self.image_paths:
                 self.status.setText(f"{len(self.image_paths)} image(s) loaded · layout ready")
         except ValueError as error:
