@@ -16,7 +16,11 @@ from photo_print_studio.photo_preparation import PhotoPreparationDialog
 
 def _run_ai_packaging_self_test() -> int:
     """Verify rembg and its runtime dependencies inside the frozen application."""
-    log_path = Path(tempfile.gettempdir()) / "PhotoPrintStudioPro-ai-self-test.log"
+    configured_log = os.environ.get("PHOTO_PRINT_AI_TEST_LOG")
+    log_path = Path(configured_log) if configured_log else (
+        Path(tempfile.gettempdir()) / "PhotoPrintStudioPro-ai-self-test.log"
+    )
+    log_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         from rembg import new_session, remove  # noqa: F401
         import onnxruntime  # noqa: F401

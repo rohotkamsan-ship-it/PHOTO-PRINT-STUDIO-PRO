@@ -39,11 +39,14 @@ jobs:
         run: |
           $exe = "dist/PhotoPrintStudioPro/PhotoPrintStudioPro.exe"
           if (!(Test-Path $exe)) { throw "Packaged application executable was not created: $exe" }
+          $env:PHOTO_PRINT_AI_TEST_LOG = Join-Path $PWD "PhotoPrintStudioPro-ai-self-test.log"
           & $exe --self-test-ai
-          if ($LASTEXITCODE -ne 0) {
-            $log = Join-Path $env:TEMP "PhotoPrintStudioPro-ai-self-test.log"
-            if (Test-Path $log) { Get-Content $log }
-            throw "Packaged EXE failed its rembg/ONNX Runtime smoke test."
+          $exitCode = $LASTEXITCODE
+          if (Test-Path $env:PHOTO_PRINT_AI_TEST_LOG) {
+            Get-Content $env:PHOTO_PRINT_AI_TEST_LOG
+          }
+          if ($exitCode -ne 0) {
+            throw "Packaged EXE failed its rembg/ONNX Runtime smoke test (exit code $exitCode)."
           }
           Write-Host "Packaged AI dependencies verified."
 

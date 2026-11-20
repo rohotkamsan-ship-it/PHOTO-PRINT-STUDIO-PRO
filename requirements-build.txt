@@ -2,3 +2,5 @@
 pyinstaller>=6.8,<7
 pytest>=8,<10
 click>=8.1,<9
+filetype>=1.2,<2
+onnx>=1.16,<2
