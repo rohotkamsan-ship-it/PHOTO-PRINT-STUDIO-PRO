@@ -35,7 +35,7 @@ jobs:
         run: pyinstaller --noconfirm --clean --windowed --hidden-import=_socket --hidden-import=socket --hidden-import=rembg --collect-submodules rembg --collect-all rembg --collect-all onnxruntime --collect-all pooch --name "PhotoPrintStudioPro" main.py
 
       - name: Build console AI smoke-test executable
-        run: pyinstaller --noconfirm --windowed --console --hidden-import=_socket --hidden-import=socket --hidden-import=rembg --collect-submodules rembg --collect-all rembg --collect-all onnxruntime --collect-all pooch --name "PhotoPrintStudioProSmoke" main.py
+        run: pyinstaller --noconfirm --console --hidden-import=_socket --hidden-import=socket --hidden-import=rembg --collect-submodules rembg --collect-all rembg --collect-all onnxruntime --collect-all pooch --name "PhotoPrintStudioProSmoke" main.py
 
       - name: Verify packaged AI dependencies
         shell: pwsh
