@@ -162,6 +162,8 @@ class MainWindow(QMainWindow):
         self.preset.setCurrentText("3x4")
         self.unit = QComboBox()
         self.unit.addItems(["mm", "cm"])
+        self.photo_orientation = QComboBox()
+        self.photo_orientation.addItems(["Portrait", "Landscape"])
         self.photo_w = QDoubleSpinBox()
         self.photo_h = QDoubleSpinBox()
         for spin in (self.photo_w, self.photo_h):
@@ -169,10 +171,12 @@ class MainWindow(QMainWindow):
             spin.setDecimals(1)
         form.addRow("Preset", self.preset)
         form.addRow("Unit", self.unit)
+        form.addRow("Orientation", self.photo_orientation)
         form.addRow("Width", self.photo_w)
         form.addRow("Height", self.photo_h)
         self.preset.currentTextChanged.connect(self._preset_changed)
         self.unit.currentTextChanged.connect(self._preset_changed)
+        self.photo_orientation.currentTextChanged.connect(self._photo_orientation_changed)
         self.photo_w.valueChanged.connect(self.recalculate)
         self.photo_h.valueChanged.connect(self.recalculate)
         photo_hint = QLabel("Choose a standard photo size or enter custom width and height. Unit applies to both dimensions.")
@@ -245,6 +249,8 @@ class MainWindow(QMainWindow):
         name, unit = self.preset.currentText(), self.unit.currentText()
         if name in PHOTO_PRESETS_MM:
             width, height = photo_size(name, unit)
+            if self.photo_orientation.currentText() == "Landscape":
+                width, height = height, width
             self.photo_w.blockSignals(True)
             self.photo_h.blockSignals(True)
             self.photo_w.setValue(width)
@@ -252,6 +258,22 @@ class MainWindow(QMainWindow):
             self.photo_w.blockSignals(False)
             self.photo_h.blockSignals(False)
         self.recalculate()
+
+    def _photo_orientation_changed(self, orientation: str):
+        # Presets are defined in portrait dimensions; custom dimensions are swapped
+        # so the selected orientation always matches the displayed width and height.
+        if self.preset.currentText() == "Custom":
+            width = self.photo_w.value()
+            height = self.photo_h.value()
+            self.photo_w.blockSignals(True)
+            self.photo_h.blockSignals(True)
+            self.photo_w.setValue(height)
+            self.photo_h.setValue(width)
+            self.photo_w.blockSignals(False)
+            self.photo_h.blockSignals(False)
+            self.recalculate()
+        else:
+            self._preset_changed()
 
     def _paper_changed(self, name: str):
         if name in PAPER_PRESETS_MM:
