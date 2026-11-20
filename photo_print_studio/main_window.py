@@ -111,13 +111,18 @@ class MainWindow(QMainWindow):
         footer = QHBoxLayout()
         self.status = QLabel("Ready · Load a photo to begin")
         footer.addWidget(self.status, 1)
-        for label in ("Export PDF", "Export JPG", "Export PNG"):
-            button = QPushButton(label)
-            button.setEnabled(False)
-            footer.addWidget(button)
+        pdf_button = QPushButton("Export PDF")
+        pdf_button.clicked.connect(self.export_pdf)
+        footer.addWidget(pdf_button)
+        jpg_button = QPushButton("Export JPG")
+        png_button = QPushButton("Export PNG")
+        jpg_button.setEnabled(False)
+        png_button.setEnabled(False)
+        footer.addWidget(jpg_button)
+        footer.addWidget(png_button)
         print_button = QPushButton("Print")
         print_button.setObjectName("primaryButton")
-        print_button.setEnabled(False)
+        print_button.clicked.connect(self.print_sheet)
         footer.addWidget(print_button)
         root_layout.addLayout(footer)
         self.setCentralWidget(root)
@@ -190,6 +195,8 @@ class MainWindow(QMainWindow):
         self.orientation.addItems(["Portrait", "Landscape"])
         self.paper_w = QDoubleSpinBox()
         self.paper_h = QDoubleSpinBox()
+        self.paper_w.setValue(210)
+        self.paper_h.setValue(297)
         for spin in (self.paper_w, self.paper_h):
             spin.setRange(20, 2000)
             spin.setDecimals(1)
@@ -264,6 +271,67 @@ class MainWindow(QMainWindow):
         except ValueError as error:
             self.preview.set_sheet(self.paper_w.value(), self.paper_h.value(), [])
             self.status.setText(str(error))
+
+
+    def export_pdf(self):
+        from PySide6.QtGui import QPageLayout, QPageSize
+        from PySide6.QtPrintSupport import QPrinter
+        path, _ = QFileDialog.getSaveFileName(self, "Export Print Sheet", "photo-sheet.pdf", "PDF Files (*.pdf)")
+        if not path:
+            return
+        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+        printer.setOutputFileName(path)
+        printer.setResolution(300)
+        page_size = QPageSize(QPageSize.PageSizeId.A4 if self.paper.currentText() == "A4" else QPageSize.PageSizeId.A5)
+        printer.setPageSize(page_size)
+        printer.setPageOrientation(QPageLayout.Orientation.Portrait if self.orientation.currentText() == "Portrait" else QPageLayout.Orientation.Landscape)
+        painter = QPainter()
+        if not painter.begin(printer):
+            QMessageBox.critical(self, "Export failed", "Could not create the PDF file.")
+            return
+        try:
+            rect = printer.pageRect(QPrinter.Unit.DevicePixel)
+            scale = min(rect.width() / self.preview.paper_width, rect.height() / self.preview.paper_height)
+            page_w = self.preview.paper_width * scale
+            page_h = self.preview.paper_height * scale
+            left = rect.x() + (rect.width() - page_w) / 2
+            top = rect.y() + (rect.height() - page_h) / 2
+            for item in self.preview.placements:
+                x, y = left + item.x_mm * scale, top + item.y_mm * scale
+                w, h = item.width_mm * scale, item.height_mm * scale
+                painter.setPen(QPen(QColor("#8b98a8"), 2))
+                painter.setBrush(QColor("#e3eaf2"))
+                painter.drawRect(int(x), int(y), int(w), int(h))
+                painter.setPen(QColor("#42566f"))
+                painter.drawText(int(x), int(y), int(w), int(h), Qt.AlignmentFlag.AlignCenter, "PHOTO")
+        finally:
+            painter.end()
+        self.status.setText(f"PDF exported: {path}")
+
+    def print_sheet(self):
+        from PySide6.QtPrintSupport import QPrintDialog, QPrinter
+        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        printer.setResolution(300)
+        dialog = QPrintDialog(printer, self)
+        if dialog.exec():
+            painter = QPainter()
+            if painter.begin(printer):
+                rect = printer.pageRect(QPrinter.Unit.DevicePixel)
+                scale = min(rect.width() / self.preview.paper_width, rect.height() / self.preview.paper_height)
+                page_w = self.preview.paper_width * scale
+                page_h = self.preview.paper_height * scale
+                left = rect.x() + (rect.width() - page_w) / 2
+                top = rect.y() + (rect.height() - page_h) / 2
+                for item in self.preview.placements:
+                    x, y = left + item.x_mm * scale, top + item.y_mm * scale
+                    w, h = item.width_mm * scale, item.height_mm * scale
+                    painter.setPen(QPen(QColor("#8b98a8"), 2))
+                    painter.setBrush(QColor("#e3eaf2"))
+                    painter.drawRect(int(x), int(y), int(w), int(h))
+                    painter.setPen(QColor("#42566f"))
+                    painter.drawText(int(x), int(y), int(w), int(h), Qt.AlignmentFlag.AlignCenter, "PHOTO")
+                painter.end()
 
     def _apply_style(self):
         self.setStyleSheet("""
