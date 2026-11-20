@@ -8,7 +8,7 @@ from PySide6.QtGui import QPixmap, QColor
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget,
     QFileDialog, QComboBox, QColorDialog, QMessageBox, QProgressDialog,
-    QGroupBox, QApplication, QSizePolicy,
+    QGroupBox, QApplication, QSizePolicy, QWidget,
 )
 
 from .background_tools import prepare_image
