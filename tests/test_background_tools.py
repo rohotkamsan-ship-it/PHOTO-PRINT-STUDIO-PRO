@@ -147,3 +147,36 @@ def test_choose_color_switches_background_to_custom(monkeypatch):
     assert dialog.background_color == "#123456"
     assert combo.currentText() == "Custom color"
     assert button.text == "Color: #123456"
+
+
+def test_apply_background_color_can_recolor_same_foreground_repeatedly(tmp_path):
+    foreground = tmp_path / "subject_foreground.png"
+    red_output = tmp_path / "subject_prepared.png"
+    Image.new("RGBA", (8, 8), (255, 0, 0, 128)).save(foreground)
+
+    background_tools.apply_background_color(str(foreground), str(red_output), "#00ff00")
+    with Image.open(red_output) as green_result:
+        assert green_result.mode == "RGB"
+        assert green_result.getpixel((0, 0)) == (127, 128, 0)
+
+    background_tools.apply_background_color(str(foreground), str(red_output), "#0000ff")
+    with Image.open(red_output) as blue_result:
+        assert blue_result.mode == "RGB"
+        assert blue_result.getpixel((0, 0)) == (127, 0, 128)
+
+    # The retained cutout stays transparent and unchanged for future recolors.
+    with Image.open(foreground) as retained:
+        assert retained.mode == "RGBA"
+        assert retained.getpixel((0, 0)) == (255, 0, 0, 128)
+
+
+def test_apply_background_color_transparent_keeps_alpha(tmp_path):
+    foreground = tmp_path / "subject_foreground.png"
+    output = tmp_path / "subject_prepared.png"
+    Image.new("RGBA", (4, 4), (20, 40, 60, 90)).save(foreground)
+
+    background_tools.apply_background_color(str(foreground), str(output), None)
+
+    with Image.open(output) as result:
+        assert result.mode == "RGBA"
+        assert result.getpixel((0, 0)) == (20, 40, 60, 90)
