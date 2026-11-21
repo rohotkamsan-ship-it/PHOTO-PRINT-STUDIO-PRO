@@ -168,7 +168,9 @@ class PhotoPreparationDialog(QDialog):
         self.custom_button = QPushButton("Choose Color")
         self.custom_button.setObjectName("secondaryButton")
         self.custom_button.clicked.connect(self._choose_color)
-        self.custom_button.setEnabled(False)
+        # Let users open the color picker directly, regardless of the preset
+        # currently selected in the dropdown (e.g. Blue).
+        self.custom_button.setEnabled(True)
         bg_layout.addWidget(self.custom_button)
         right_layout.addWidget(background_group)
         body.addWidget(right_panel, 1)
@@ -264,12 +266,20 @@ class PhotoPreparationDialog(QDialog):
         self.selection_info.setText(f"Photo {row + 1} of {len(self.prepared_paths)}  ·  {Path(path).name}")
 
     def _background_changed(self, value: str):
-        self.custom_button.setEnabled(value == "Custom color")
+        # The custom picker is available for every preset so users can change
+        # Blue (or any other preset) directly to a custom color in one action.
+        self.custom_button.setEnabled(True)
 
     def _choose_color(self):
-        color = QColorDialog.getColor(QColor(self.background_color), self, "Choose background color")
+        color = QColorDialog.getColor(
+            QColor(self.background_color), self, "Choose background color"
+        )
         if color.isValid():
             self.background_color = color.name()
+            # Selecting a custom color must also switch the processing mode;
+            # otherwise remove_backgrounds() would keep applying the old preset.
+            if self.background.currentText() != "Custom color":
+                self.background.setCurrentText("Custom color")
             self.custom_button.setText(f"Color: {self.background_color}")
 
     def remove_backgrounds(self):
