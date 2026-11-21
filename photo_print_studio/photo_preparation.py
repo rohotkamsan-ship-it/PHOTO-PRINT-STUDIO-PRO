@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QGroupBox, QApplication, QSizePolicy, QWidget,
 )
 
-from .background_tools import prepare_image
+from .background_tools import apply_background_color, prepare_image
 
 
 class ImagePreviewLabel(QLabel):
@@ -59,9 +59,15 @@ class PhotoPreparationDialog(QDialog):
         self.source_paths: list[str] = []
         self.prepared_paths: list[str] = []
         self.background_color = "#ffffff"
+        self._transparent_foregrounds: dict[int, str] = {}
         initial_images = list(initial_images or [])
         self.source_paths = list(initial_images)
         self.prepared_paths = list(initial_images)
+        # Reuse retained transparent AI cutouts when returning from Print Layout.
+        for index, path in enumerate(initial_images):
+            candidate = Path(path).with_name(Path(path).stem.replace("_prepared", "") + "_foreground.png")
+            if candidate.is_file():
+                self._transparent_foregrounds[index] = str(candidate)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(22, 18, 22, 18)
@@ -152,7 +158,7 @@ class PhotoPreparationDialog(QDialog):
         bg_text = QVBoxLayout()
         bg_title = QLabel("Background after removal")
         bg_title.setObjectName("fieldTitle")
-        bg_hint = QLabel("Choose the color to apply when you click Remove Background.")
+        bg_hint = QLabel("Choose a color. Prepared photos update immediately; new photos use it during background removal.")
         bg_hint.setObjectName("muted")
         bg_hint.setWordWrap(True)
         bg_text.addWidget(bg_title)
@@ -245,6 +251,7 @@ class PhotoPreparationDialog(QDialog):
             return
         self.source_paths = list(paths)
         self.prepared_paths = list(paths)
+        self._transparent_foregrounds.clear()
         self.files.clear()
         self.files.addItems([Path(path).name for path in paths])
         self.photo_count.setText(f"{len(paths)} photo(s) loaded")
@@ -265,10 +272,34 @@ class PhotoPreparationDialog(QDialog):
             self.preview.set_image(pix)
         self.selection_info.setText(f"Photo {row + 1} of {len(self.prepared_paths)}  ·  {Path(path).name}")
 
+    def _selected_background_color(self) -> str | None:
+        colors = {
+            "Transparent": None, "White": "#ffffff", "Blue": "#1677d2",
+            "Light Blue": "#9fd5f5", "Red": "#d92736",
+            "Custom color": self.background_color,
+        }
+        return colors.get(self.background.currentText())
+
+    def _refresh_prepared_backgrounds(self):
+        """Re-composite saved transparent cutouts; never rerun the AI model."""
+        color = self._selected_background_color()
+        for index, foreground_path in self._transparent_foregrounds.items():
+            if index >= len(self.prepared_paths):
+                continue
+            output_path = self.prepared_paths[index]
+            try:
+                apply_background_color(foreground_path, output_path, color)
+            except Exception as exc:
+                QMessageBox.warning(self, "Background color", f"Could not update {Path(output_path).name}: {exc}")
+        row = self.files.currentRow()
+        if 0 <= row < len(self.prepared_paths) and row in self._transparent_foregrounds:
+            self._show_preview(row)
+
     def _background_changed(self, value: str):
-        # The custom picker is available for every preset so users can change
-        # Blue (or any other preset) directly to a custom color in one action.
+        # The custom picker is available for every preset. Existing AI cutouts
+        # are recolored immediately from their retained transparent PNG.
         self.custom_button.setEnabled(True)
+        self._refresh_prepared_backgrounds()
 
     def _choose_color(self):
         color = QColorDialog.getColor(
@@ -281,18 +312,14 @@ class PhotoPreparationDialog(QDialog):
             if self.background.currentText() != "Custom color":
                 self.background.setCurrentText("Custom color")
             self.custom_button.setText(f"Color: {self.background_color}")
+            self._refresh_prepared_backgrounds()
 
     def remove_backgrounds(self):
         if not self.source_paths:
             QMessageBox.information(self, "Load photos", "Please load at least one photo first.")
             return
 
-        choice = self.background.currentText()
-        colors = {
-            "White": "#ffffff", "Blue": "#1677d2", "Light Blue": "#9fd5f5",
-            "Red": "#d92736", "Custom color": self.background_color, "Transparent": None,
-        }
-        color = colors.get(choice)
+        color = self._selected_background_color()
         output_dir = Path.home() / "Pictures" / "PHOTO_PRINT_STUDIO_PRO" / "Prepared"
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -321,8 +348,12 @@ class PhotoPreparationDialog(QDialog):
                 )
                 QApplication.processEvents()
                 target = output_dir / f"{Path(source).stem}_prepared.png"
+                foreground_target = output_dir / f"{Path(source).stem}_foreground.png"
                 try:
-                    result_by_source[source] = prepare_image(source, str(target), color)
+                    prepare_image(source, str(foreground_target), None)
+                    apply_background_color(str(foreground_target), str(target), color)
+                    result_by_source[source] = str(target)
+                    self._transparent_foregrounds[index] = str(foreground_target)
                 except Exception as exc:
                     failures.append(f"{Path(source).name}: {exc}")
                 finally:
