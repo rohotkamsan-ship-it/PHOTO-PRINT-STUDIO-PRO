@@ -101,3 +101,26 @@ def prepare_image(source: str, output: str, background: str | None = None) -> st
         raise RuntimeError(
             f"Background removal failed for '{source_path.name}': {exc}"
         ) from exc
+
+
+def apply_background_color(foreground_path: str, output_path: str, background: str | None = None) -> str:
+    """Composite a saved transparent foreground onto a background without rerunning AI."""
+    foreground_path = Path(foreground_path)
+    if not foreground_path.is_file():
+        raise FileNotFoundError(f"Transparent foreground not found: {foreground_path}")
+
+    with Image.open(foreground_path) as opened:
+        foreground = opened.convert("RGBA")
+
+    if background and background.lower() not in {"transparent", "none"}:
+        color = background if background.startswith("#") else "#ffffff"
+        canvas = Image.new("RGBA", foreground.size, color)
+        canvas.alpha_composite(foreground)
+        result = canvas.convert("RGB")
+    else:
+        result = foreground
+
+    destination = Path(output_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    result.save(destination, format="PNG", optimize=True)
+    return str(destination)
