@@ -88,3 +88,62 @@ def test_ensure_stdio_repairs_missing_gui_stream(monkeypatch):
     background_tools._ensure_stdio()
     assert sys.stderr is not None
     assert callable(sys.stderr.write)
+
+
+
+def test_background_picker_stays_enabled_for_preset_selection():
+    from photo_print_studio.photo_preparation import PhotoPreparationDialog
+
+    class Button:
+        enabled = False
+
+        def setEnabled(self, value):
+            self.enabled = value
+
+    dialog = SimpleNamespace(custom_button=Button())
+    PhotoPreparationDialog._background_changed(dialog, "Blue")
+    assert dialog.custom_button.enabled is True
+
+
+def test_choose_color_switches_background_to_custom(monkeypatch):
+    from photo_print_studio.photo_preparation import PhotoPreparationDialog
+
+    class FakeColor:
+        def isValid(self):
+            return True
+
+        def name(self):
+            return "#123456"
+
+    class Combo:
+        value = "Blue"
+
+        def currentText(self):
+            return self.value
+
+        def setCurrentText(self, value):
+            self.value = value
+
+    class Button:
+        text = ""
+
+        def setText(self, value):
+            self.text = value
+
+    combo = Combo()
+    button = Button()
+    dialog = SimpleNamespace(
+        background_color="#ffffff",
+        background=combo,
+        custom_button=button,
+    )
+    monkeypatch.setattr(
+        "photo_print_studio.photo_preparation.QColorDialog.getColor",
+        lambda *args, **kwargs: FakeColor(),
+    )
+
+    PhotoPreparationDialog._choose_color(dialog)
+
+    assert dialog.background_color == "#123456"
+    assert combo.currentText() == "Custom color"
+    assert button.text == "Color: #123456"
